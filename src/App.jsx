@@ -1,10 +1,10 @@
 import { useState } from 'react'
+import { useUser, UserButton, SignedIn, SignedOut } from '@clerk/clerk-react'
 import { useHabits } from './hooks/useHabits'
-import { useGistSync } from './hooks/useGistSync'
 import { TodayView } from './components/TodayView'
 import { ScheduleView } from './components/ScheduleView'
 import { AllHabitsView } from './components/AllHabitsView'
-import { SyncModal } from './components/SyncModal'
+import { AuthPage } from './components/AuthPage'
 import './index.css'
 
 const TABS = [
@@ -13,33 +13,30 @@ const TABS = [
   { id: 'habits', label: 'Habits' },
 ]
 
-export default function App() {
+function AppShell() {
+  const { user } = useUser()
   const [tab, setTab] = useState('today')
-  const [showSync, setShowSync] = useState(false)
 
   const {
-    habits, rawData, addHabit, updateHabit, deleteHabit,
-    toggleCompletion, habitsForDate, isCompleted, getStreak, importData,
-  } = useHabits()
-
-  const gistSync = useGistSync()
+    habits, addHabit, updateHabit, deleteHabit,
+    toggleCompletion, habitsForDate, isCompleted, getStreak,
+    syncing, syncError,
+  } = useHabits(user?.id)
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <span className="font-semibold text-gray-900 tracking-tight">HabitTrack</span>
-          <button
-            onClick={() => setShowSync(true)}
-            title="GitHub Gist Sync"
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
-              <polyline points="16 6 12 2 8 6" />
-              <line x1="12" y1="2" x2="12" y2="15" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-3">
+            {syncing && (
+              <span className="text-xs text-gray-400 animate-pulse">Syncing…</span>
+            )}
+            {syncError && !syncing && (
+              <span className="text-xs text-red-400" title={syncError}>Sync failed</span>
+            )}
+            <UserButton afterSignOutUrl="/" />
+          </div>
         </div>
       </header>
 
@@ -91,15 +88,19 @@ export default function App() {
           />
         )}
       </main>
-
-      {showSync && (
-        <SyncModal
-          gistSync={gistSync}
-          rawData={rawData}
-          importData={importData}
-          onClose={() => setShowSync(false)}
-        />
-      )}
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <>
+      <SignedIn>
+        <AppShell />
+      </SignedIn>
+      <SignedOut>
+        <AuthPage />
+      </SignedOut>
+    </>
   )
 }

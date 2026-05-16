@@ -1,43 +1,86 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { nanoid } from 'nanoid'
+import { supabase } from '../lib/supabase'
 
-const STORAGE_KEY = 'habittrack_data'
+const LOCAL_KEY = 'habittrack_data'
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function defaultData() {
+function emptyData() {
   return { habits: [], version: 1 }
 }
 
-function load() {
+function loadLocal() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : defaultData()
+    const raw = localStorage.getItem(LOCAL_KEY)
+    return raw ? JSON.parse(raw) : emptyData()
   } catch {
-    return defaultData()
+    return emptyData()
   }
 }
 
-function save(data) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+function saveLocal(data) {
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(data))
 }
 
-export function useHabits() {
-  const [data, setData] = useState(load)
+export function useHabits(userId) {
+  const [data, setData] = useState(emptyData)
+  const [syncing, setSyncing] = useState(false)
+  const [syncError, setSyncError] = useState(null)
+  const saveTimer = useRef(null)
 
+  // Load data from Supabase on mount / user change
   useEffect(() => {
-    save(data)
-  }, [data])
+    if (!userId) {
+      setData(emptyData())
+      return
+    }
+    setSyncing(true)
+    supabase
+      .from('user_data')
+      .select('data')
+      .eq('user_id', userId)
+      .maybeSingle()
+      .then(({ data: row, error }) => {
+        if (error) {
+          setSyncError(error.message)
+          setData(loadLocal())
+        } else if (row) {
+          setData(row.data)
+          saveLocal(row.data)
+        } else {
+          // First time — migrate any existing local data
+          const local = loadLocal()
+          setData(local)
+        }
+        setSyncing(false)
+      })
+  }, [userId])
 
-  function mutate(fn) {
+  // Debounced save to Supabase whenever data changes
+  useEffect(() => {
+    if (!userId) return
+    clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(async () => {
+      saveLocal(data)
+      const { error } = await supabase
+        .from('user_data')
+        .upsert({ user_id: userId, data, updated_at: new Date().toISOString() })
+      if (error) setSyncError(error.message)
+      else setSyncError(null)
+    }, 800)
+    return () => clearTimeout(saveTimer.current)
+  }, [data, userId])
+
+  const mutate = useCallback(fn => {
     setData(prev => {
       const next = { ...prev, habits: prev.habits.map(h => ({ ...h })) }
       fn(next)
       return next
     })
-  }
+  }, [])
 
   function addHabit({ name, description, frequency, days, color }) {
     mutate(d => {
@@ -62,27 +105,21 @@ export function useHabits() {
   }
 
   function deleteHabit(id) {
-    mutate(d => {
-      d.habits = d.habits.filter(h => h.id !== id)
-    })
+    mutate(d => { d.habits = d.habits.filter(h => h.id !== id) })
   }
 
   function toggleCompletion(id, dateStr = todayStr()) {
     mutate(d => {
       const habit = d.habits.find(h => h.id === id)
       if (!habit) return
-      if (habit.completions[dateStr]) {
-        delete habit.completions[dateStr]
-      } else {
-        habit.completions[dateStr] = true
-      }
+      if (habit.completions[dateStr]) delete habit.completions[dateStr]
+      else habit.completions[dateStr] = true
     })
   }
 
   function isScheduledOn(habit, date) {
     if (habit.frequency === 'daily') return true
-    const dow = date.getDay()
-    return habit.days.includes(dow)
+    return habit.days.includes(date.getDay())
   }
 
   function habitsForDate(date) {
@@ -105,7 +142,6 @@ export function useHabits() {
       if (habit.completions[ds]) {
         streak++
       } else if (i === 0) {
-        // today not done yet is fine — don't break streak
         continue
       } else {
         break
@@ -114,20 +150,11 @@ export function useHabits() {
     return streak
   }
 
-  function importData(json) {
-    try {
-      const parsed = typeof json === 'string' ? JSON.parse(json) : json
-      if (!parsed.habits) throw new Error('Invalid data')
-      setData(parsed)
-      return true
-    } catch {
-      return false
-    }
-  }
-
   return {
     habits: data.habits,
     rawData: data,
+    syncing,
+    syncError,
     addHabit,
     updateHabit,
     deleteHabit,
@@ -136,7 +163,6 @@ export function useHabits() {
     isCompleted,
     isScheduledOn,
     getStreak,
-    importData,
     todayStr,
   }
 }
