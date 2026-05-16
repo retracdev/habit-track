@@ -23,7 +23,7 @@ export function AuthPage() {
                 footerActionLink: 'text-violet-600 hover:text-violet-700',
               },
             }}
-            afterSignInUrl="/"
+            afterSignInUrl="/habit-track/"
           />
         ) : (
           <SignUp
@@ -36,7 +36,7 @@ export function AuthPage() {
                 footerActionLink: 'text-violet-600 hover:text-violet-700',
               },
             }}
-            afterSignUpUrl="/"
+            afterSignUpUrl="/habit-track/"
           />
         )}
       </div>

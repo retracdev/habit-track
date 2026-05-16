@@ -35,7 +35,7 @@ function AppShell() {
             {syncError && !syncing && (
               <span className="text-xs text-red-400" title={syncError}>Sync failed</span>
             )}
-            <UserButton afterSignOutUrl="/" />
+            <UserButton afterSignOutUrl="/habit-track/" />
           </div>
         </div>
       </header>
