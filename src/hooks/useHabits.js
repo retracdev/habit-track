@@ -33,8 +33,8 @@ export function useHabits(userId) {
 
   // Load data from Supabase on mount / user change
   useEffect(() => {
-    if (!userId) {
-      setData(emptyData())
+    if (!userId || !supabase) {
+      setData(loadLocal())
       return
     }
     setSyncing(true)
@@ -65,6 +65,7 @@ export function useHabits(userId) {
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
       saveLocal(data)
+      if (!supabase) return
       const { error } = await supabase
         .from('user_data')
         .upsert({ user_id: userId, data, updated_at: new Date().toISOString() })
