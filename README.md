@@ -1,6 +1,7 @@
 # HabitTrack
 
-**Note!** This app is FULLY AI-generated. It was made as a test by Claude Code.
+> [!NOTE]
+> This website is a simple test I made with Claude Code to try its capabilities when I first got it. I am no longer updating this repo.
 
 A clean, cross-device habit tracker with email/password authentication and real-time cloud sync. Built with React, Clerk, and Supabase.
 
